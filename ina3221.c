@@ -4,7 +4,7 @@
 static const char *TAG = "ina3221";
 
 #define INA3221_I2C_TIMEOUT 100
-#define I2C_FREQ_HZ 1000000 // Max 1MHz for esp-idf, but device supports up to 2.44Mhz
+#define I2C_FREQ_HZ 400000 // Max 1MHz for esp-idf, but device supports up to 2.44Mhz
 
 #define INA3221_REG_CONFIG                      (0x00)
 #define INA3221_REG_SHUNTVOLTAGE_1              (0x01)
@@ -131,6 +131,14 @@ esp_err_t ina3221_enable_channel(ina3221_handle_t *handle, bool ch1, bool ch2, b
     return write_config(handle);
 }
 
+esp_err_t ina3221_set_shunt_resistor(ina3221_handle_t *handle, uint16_t resistance, ina3221_channel_t channel)
+{
+    CHECK_ARG(handle);
+
+    handle->shunt[channel] = resistance;
+    return ESP_OK;
+}
+
 esp_err_t ina3221_enable_channel_sum(ina3221_handle_t *handle, bool ch1, bool ch2, bool ch3)
 {
     CHECK_ARG(handle);
@@ -184,23 +192,31 @@ esp_err_t ina3221_reset(ina3221_handle_t *handle)
     return write_config(handle);
 }
 
-esp_err_t ina3221_get_bus_voltage(ina3221_handle_t *handle, ina3221_channel_t channel, float *voltage)
+esp_err_t ina3221_get_bus_voltage(ina3221_handle_t *handle, ina3221_channel_t channel)
 {
-    CHECK_ARG(handle && voltage);
+    CHECK_ARG(handle && handle->data.bus_voltage[channel]);
 
     int16_t raw;
 
     RETURN_ON_ERROR(ina3221_read(handle, INA3221_REG_BUSVOLTAGE_1 + channel * 2, (uint16_t *)&raw));
-    *voltage = raw * 0.001;
+    handle->data.bus_voltage[channel] = raw * 0.001;
 
     return ESP_OK;
 }
 
-esp_err_t ina3221_get_shunt_value(ina3221_handle_t *handle, ina3221_channel_t channel, float *voltage, float *current)
+esp_err_t ina3221_get_bus_voltage_all_channels(ina3221_handle_t *handle)
+{
+    RETURN_ON_ERROR(ina3221_get_bus_voltage(handle, INA3221_CHANNEL_1));
+    RETURN_ON_ERROR(ina3221_get_bus_voltage(handle, INA3221_CHANNEL_2));
+    RETURN_ON_ERROR(ina3221_get_bus_voltage(handle, INA3221_CHANNEL_3));
+    return ESP_OK;
+}
+
+esp_err_t ina3221_get_shunt_value(ina3221_handle_t *handle, ina3221_channel_t channel)
 {
     CHECK_ARG(handle);
-    CHECK_ARG(voltage || current);
-    if (current && !handle->shunt[channel])
+    CHECK_ARG(handle->data.shunt_voltage[channel] || handle->data.shunt_current[channel]);
+    if (handle->data.shunt_current[channel] && !handle->shunt[channel])
     {
         ESP_LOGE(TAG, "No shunt configured for channel %u in device [0x%02x at %d]", channel, handle->dev_addr);
         return ESP_ERR_INVALID_ARG;
@@ -210,23 +226,28 @@ esp_err_t ina3221_get_shunt_value(ina3221_handle_t *handle, ina3221_channel_t ch
     RETURN_ON_ERROR(ina3221_read(handle, INA3221_REG_SHUNTVOLTAGE_1 + channel * 2, (uint16_t *)&raw));
     float mvolts = raw * 0.005; // mV, 40uV step
 
-    if (voltage)
-        *voltage = mvolts;
-
-    if (current)
-        *current = mvolts * 1000.0 / handle->shunt[channel];  // mA
+    handle->data.shunt_voltage[channel] = mvolts;
+    handle->data.shunt_current[channel] = mvolts * 1000.0 / handle->shunt[channel];  // mA
 
     return ESP_OK;
 }
 
-esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t *handle, float *voltage)
+esp_err_t ina3221_get_shunt_value_all_channels(ina3221_handle_t *handle)
 {
-    CHECK_ARG(handle && voltage);
+    RETURN_ON_ERROR(ina3221_get_shunt_value(handle, INA3221_CHANNEL_1));
+    RETURN_ON_ERROR(ina3221_get_shunt_value(handle, INA3221_CHANNEL_2));
+    RETURN_ON_ERROR(ina3221_get_shunt_value(handle, INA3221_CHANNEL_3));
+    return ESP_OK;
+}
+
+esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t *handle)
+{
+    CHECK_ARG(handle && handle->data.sum_shunt_voltage);
 
     int16_t raw;
 
     RETURN_ON_ERROR(ina3221_read(handle, INA3221_REG_SHUNT_VOLTAGE_SUM, (uint16_t *)&raw));
-    *voltage = raw * 0.02; // mV
+    handle->data.sum_shunt_voltage = raw * 0.02; // mV
 
     return ESP_OK;
 }
