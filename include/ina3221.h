@@ -117,7 +117,16 @@ typedef struct
     i2c_master_bus_handle_t i2c_master_bus_handle; ///< I2C device descriptor
     uint16_t shunt[INA3221_BUS_NUMBER]; ///< Memory of shunt value (mOhm)
     ina3221_config_t config;                  ///< Memory of ina3221 config
-    ina3221_mask_t mask;                      ///< Memory of mask_config
+    ina3221_mask_t mask;                ///< Memory of mask_config
+
+    struct
+    {
+        float bus_voltage[INA3221_BUS_NUMBER]; ///< V
+        float shunt_voltage[INA3221_BUS_NUMBER];///< mV
+        float shunt_current[INA3221_BUS_NUMBER];///< mA
+        float sum_shunt_voltage; ///< mV
+    } data;
+    
 } ina3221_handle_t;
 
 /**
@@ -196,6 +205,16 @@ esp_err_t ina3221_enable_channel(ina3221_handle_t *handle, bool ch1, bool ch2, b
 esp_err_t ina3221_enable_channel_sum(ina3221_handle_t *handle, bool ch1, bool ch2, bool ch3);
 
 /**
+ * @brief Select value of shunt resistor on the channel
+ *
+ * @param handle Device descriptor
+ * @param resistance Resistance of the shunt resistor in mOhm
+ * @param channel Choose the channel to change resistance
+ * @return ESP_OK to indicate success
+ */
+esp_err_t ina3221_set_shunt_resistor(ina3221_handle_t *handle, uint16_t resistance, ina3221_channel_t channel);
+
+/**
  * @brief enable/disable latch on warning and critical alert pin
  *
  * @param handle Device descriptor
@@ -247,30 +266,42 @@ esp_err_t ina3221_reset(ina3221_handle_t *handle);
  *
  * @param handle Device descriptor
  * @param channel Select channel value to get
- * @param voltage Data pointer to get bus voltage (V)
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_get_bus_voltage(ina3221_handle_t *handle, ina3221_channel_t channel, float *voltage);
+esp_err_t ina3221_get_bus_voltage(ina3221_handle_t *handle, ina3221_channel_t channel);
+
+/**
+ * @brief Get Bus voltage on all channels (V)
+ *
+ * @param handle Device descriptor
+ * @return ESP_OK to indicate success
+ */
+esp_err_t ina3221_get_bus_voltage_all_channels(ina3221_handle_t *handle);
 
 /**
  * @brief Get Shunt voltage (mV) and current (mA)
  *
  * @param handle Device descriptor
  * @param channel Select channel value to get
- * @param voltage Data pointer to get shunt voltage (mV)
- * @param current Data pointer to get shunt voltage (mA)
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_get_shunt_value(ina3221_handle_t *handle, ina3221_channel_t channel, float *voltage, float *current);
+esp_err_t ina3221_get_shunt_value(ina3221_handle_t *handle, ina3221_channel_t channel);
+
+/**
+ * @brief Get shunt voltage and current on all channels
+ *
+ * @param handle Device descriptor
+ * @return ESP_OK to indicate success
+ */
+esp_err_t ina3221_get_shunt_value_all_channels(ina3221_handle_t *handle);
 
 /**
  * @brief Get Shunt-voltage (mV) sum value of selected channels
  *
  * @param handle Device descriptor
- * @param voltage Data pointer to get shunt voltage (mV)
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t *handle, float *voltage);
+esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t *handle);
 
 /**
  * @brief Set Critical alert
