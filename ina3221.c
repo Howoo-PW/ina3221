@@ -28,7 +28,7 @@ static esp_err_t ina3221_read(ina3221_handle_t *handle, const uint8_t reg, uint1
 {
     CHECK_ARG(val);
 
-    RETURN_ON_ERROR(i2c_master_transmit_recive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, val, 2, INA3221_I2C_TIMEOUT));
+    RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, val, 2, INA3221_I2C_TIMEOUT));
 
     *val = (*val >> 8) | (*val << 8);  // Swap
 
