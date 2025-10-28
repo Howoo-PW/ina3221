@@ -24,11 +24,11 @@ static const char *TAG = "ina3221";
 
 #define CHECK_ARG(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 
-static esp_err_t ina3221_read(ina3221_handle_t *handle, const uint8_t reg, uint16_t *const val)
+static esp_err_t ina3221_read(ina3221_handle_t *handle, const uint8_t reg, uint16_t * val)
 {
     CHECK_ARG(val);
 
-    RETURN_ON_ERROR(i2c_master_transmit_recive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, val, 2, INA3221_I2C_TIMEOUT));
+    RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, (uint8_t*)val, 2, INA3221_I2C_TIMEOUT));
 
     *val = (*val >> 8) | (*val << 8);  // Swap
 
@@ -78,7 +78,14 @@ esp_err_t ina3221_init(ina3221_handle_t *handle, uint8_t addr, i2c_master_bus_ha
     };
 
     RETURN_ON_ERROR(i2c_master_bus_add_device(*i2c_bus, &dev_cfg, &handle->i2c_master_dev_handle));
+    handle->i2c_device_config = dev_cfg;
     handle->i2c_master_bus_handle = *i2c_bus;
+    handle->dev_addr = addr;
+    handle->mask.mask_register = INA3221_DEFAULT_MASK;
+    handle->config.config_register = INA3221_DEFAULT_CONFIG;
+    handle->shunt[0] = 100;
+    handle->shunt[1] = 100;
+    handle->shunt[2] = 100;
     return ESP_OK;
 }
 
@@ -194,7 +201,7 @@ esp_err_t ina3221_reset(ina3221_handle_t *handle)
 
 esp_err_t ina3221_get_bus_voltage(ina3221_handle_t *handle, ina3221_channel_t channel)
 {
-    CHECK_ARG(handle && handle->data.bus_voltage[channel]);
+    CHECK_ARG(handle);
 
     int16_t raw;
 
@@ -215,12 +222,11 @@ esp_err_t ina3221_get_bus_voltage_all_channels(ina3221_handle_t *handle)
 esp_err_t ina3221_get_shunt_value(ina3221_handle_t *handle, ina3221_channel_t channel)
 {
     CHECK_ARG(handle);
-    CHECK_ARG(handle->data.shunt_voltage[channel] || handle->data.shunt_current[channel]);
-    if (handle->data.shunt_current[channel] && !handle->shunt[channel])
-    {
-        ESP_LOGE(TAG, "No shunt configured for channel %u in device [0x%02x at %d]", channel, handle->dev_addr);
-        return ESP_ERR_INVALID_ARG;
-    }
+    // if (handle->data.shunt_current[channel] && !(handle->shunt[channel]))
+    // {
+    //     ESP_LOGE(TAG, "No shunt configured for channel %u in device [0x%02x]", channel, handle->dev_addr);
+    //     return ESP_ERR_INVALID_ARG;
+    // }
 
     int16_t raw;
     RETURN_ON_ERROR(ina3221_read(handle, INA3221_REG_SHUNTVOLTAGE_1 + channel * 2, (uint16_t *)&raw));
